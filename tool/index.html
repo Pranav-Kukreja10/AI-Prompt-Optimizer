@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Prompt Middleware</title>
+  <link rel="stylesheet" href="tool.css" />
+  <!-- Google Fonts: Geist equivalent (Inter is visually identical for web use) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <main class="main-layout">
+
+    <!-- ── Header ── -->
+    <header class="header" role="banner">
+      <h1 class="header-title" aria-label="AI Prompt Middleware">
+        <svg width="100%" height="1.3em" viewBox="0 0 700 60"
+             preserveAspectRatio="xMidYMid meet"
+             style="overflow:visible;display:block;margin:0 auto"
+             aria-hidden="true">
+          <defs>
+            <linearGradient id="hgrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%"   stop-color="#38bdf8" />
+              <stop offset="30%"  stop-color="#818cf8" />
+              <stop offset="60%"  stop-color="#c084fc" />
+              <stop offset="85%"  stop-color="#e879f9" />
+              <stop offset="100%" stop-color="#ff62b3" />
+            </linearGradient>
+          </defs>
+          <text x="50%" y="50"
+                text-anchor="middle"
+                fill="url(#hgrad)"
+                class="svg-title-text">
+            AI Prompt Middleware
+          </text>
+        </svg>
+      </h1>
+      <p class="header-sub">Turn messy ideas into model-perfect prompts</p>
+    </header>
+
+    <!-- ── Two-column grid ── -->
+    <div class="grid-wrapper">
+
+      <!-- ════ LEFT COLUMN: INPUT CARD ════ -->
+      <div class="card card-left" id="inputCard">
+
+        <!-- Top shimmer line -->
+        <div class="card-shimmer card-shimmer-top" aria-hidden="true"></div>
+
+        <!-- Suggestion overlay (hidden by default) -->
+        <div class="suggestion-overlay" id="suggestionOverlay" role="dialog" aria-modal="true" aria-label="Model suggestion" hidden>
+          <div class="suggestion-glow" aria-hidden="true"></div>
+          <div class="suggestion-badge-row">
+            <span class="suggestion-label">Best Match Found</span>
+            <span class="suggestion-free-badge" id="suggestionFreeBadge" hidden>Free</span>
+          </div>
+          <p class="suggestion-model-name" id="suggestionModelName"></p>
+          <p class="suggestion-reason" id="suggestionReason"></p>
+          <div class="suggestion-strengths" id="suggestionStrengths" role="list"></div>
+          <div class="suggestion-actions">
+            <button class="btn-use-model" id="btnUseModel">Use Model</button>
+            <button class="btn-dismiss" id="btnDismiss">Dismiss</button>
+          </div>
+        </div>
+
+        <!-- Card header -->
+        <div class="card-header">
+          <label class="input-label" for="promptTextarea">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            Your Prompt
+          </label>
+
+          <!-- Model selector dropdown -->
+          <div class="dropdown-wrapper" id="modelDropdownWrapper">
+            <button class="dropdown-trigger" id="modelDropdownTrigger"
+                    aria-haspopup="listbox" aria-expanded="false"
+                    aria-controls="modelDropdownMenu">
+              <span class="model-dot" id="modelDot" hidden></span>
+              <span id="modelTriggerLabel">Select Target</span>
+              <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+            <div class="dropdown-menu" id="modelDropdownMenu" role="listbox" aria-label="Select target model" hidden>
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Textarea -->
+        <textarea
+          id="promptTextarea"
+          class="prompt-textarea custom-scrollbar"
+          placeholder="Describe what you need the AI to do. Messy is totally fine..."
+          aria-label="Prompt input"
+        ></textarea>
+
+        <!-- Card footer / action bar -->
+        <div class="card-footer card-footer-left">
+          <button class="btn-refine" id="btnRefine" disabled aria-label="Optimize prompt">
+            Pick a Model First
+          </button>
+
+          <!-- Auto panel -->
+          <div class="dropdown-wrapper auto-wrapper" id="autoPanelWrapper">
+            <button class="btn-auto" id="btnAutoTrigger" disabled
+                    aria-haspopup="dialog" aria-expanded="false">
+              🤖 Auto
+            </button>
+            <div class="auto-panel" id="autoPanel" role="dialog" aria-label="Auto model selector" hidden>
+              <!-- Header -->
+              <div class="auto-panel-header">
+                <p class="auto-panel-title">Auto Model Selector</p>
+                <p class="auto-panel-sub">Let AI pick the best model for your prompt.</p>
+              </div>
+
+              <!-- Pro toggle -->
+              <div class="auto-panel-row">
+                <span class="auto-row-label">Include Pro Models</span>
+                <button class="toggle-switch" id="proToggle"
+                        role="switch" aria-checked="false" aria-label="Include pro models">
+                  <span class="toggle-thumb"></span>
+                </button>
+              </div>
+
+              <!-- Tier tabs -->
+              <div class="tier-tabs" id="tierTabs" role="tablist" aria-label="Filter by tier">
+                <button class="tier-tab" data-tier="all"  role="tab" aria-selected="true">All</button>
+                <button class="tier-tab" data-tier="free" role="tab" aria-selected="false">Free Only</button>
+                <button class="tier-tab" data-tier="paid" role="tab" aria-selected="false">Pro Only</button>
+              </div>
+
+              <!-- Model chips per provider -->
+              <div class="auto-model-list custom-scrollbar" id="autoModelList">
+                <!-- Populated by JS -->
+              </div>
+
+              <!-- Footer -->
+              <div class="auto-panel-footer">
+                <span class="enabled-count" id="enabledCount">0 selected</span>
+                <button class="btn-find-best" id="btnFindBest">Find Best</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /card-left -->
+
+      <!-- ════ RIGHT COLUMN: OUTPUT CARD ════ -->
+      <div class="card card-right">
+        <div class="card-shimmer card-shimmer-top card-shimmer-right" aria-hidden="true"></div>
+
+        <!-- Card header: tabs + style picker + copy -->
+        <div class="card-header">
+          <div class="tab-group" role="tablist" aria-label="Output view">
+            <button class="tab active" data-tab="formatted" role="tab" aria-selected="true" aria-controls="tabFormatted">Ready Prompt</button>
+            <button class="tab" data-tab="structured"       role="tab" aria-selected="false" aria-controls="tabStructured">Breakdown</button>
+          </div>
+
+          <div class="output-header-right">
+            <!-- Style dropdown -->
+            <div class="dropdown-wrapper" id="styleDropdownWrapper">
+              <button class="dropdown-trigger style-trigger" id="styleDropdownTrigger"
+                      aria-haspopup="listbox" aria-expanded="false"
+                      aria-controls="styleDropdownMenu">
+                <span id="styleIcon">💼</span>
+                <span class="hidden-mobile">Choose Style</span>
+                <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </button>
+              <div class="dropdown-menu style-dropdown-menu" id="styleDropdownMenu" role="listbox" aria-label="Select prompt style" hidden>
+                <p class="dropdown-section-label">Prompt Style</p>
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+            <!-- Copy button (hidden until output exists) -->
+            <button class="btn-copy" id="btnCopy" hidden>Copy</button>
+          </div>
+        </div>
+
+        <!-- Output body -->
+        <div class="output-body custom-scrollbar" id="outputBody" role="region" aria-live="polite" aria-label="Prompt output">
+          <!-- Empty state -->
+          <div class="empty-state" id="emptyState">
+            <div class="empty-icon" id="emptyIcon">
+              <span>🎯</span>
+            </div>
+            <p class="empty-msg" id="emptyMsg">Select a model or use Auto to begin.</p>
+          </div>
+
+          <!-- Formatted tab content -->
+          <div id="tabFormatted" role="tabpanel" hidden>
+            <pre class="formatted-pre custom-scrollbar" id="formattedPre"></pre>
+          </div>
+
+          <!-- Structured tab content -->
+          <div id="tabStructured" role="tabpanel" hidden>
+            <div class="structured-body" id="structuredBody"></div>
+          </div>
+        </div>
+
+        <!-- Card footer -->
+        <div class="card-footer output-footer" id="outputFooter">
+          <span class="waiting-msg" id="waitingMsg">Waiting for input...</span>
+          <span class="model-footer-info" id="modelFooterInfo" hidden>
+            <span class="footer-dot" id="footerDot"></span>
+            <span class="footer-text" id="footerText"></span>
+          </span>
+        </div>
+      </div><!-- /card-right -->
+
+    </div><!-- /grid-wrapper -->
+  </main>
+
+  <script src="tool.js"></script>
+</body>
+</html>

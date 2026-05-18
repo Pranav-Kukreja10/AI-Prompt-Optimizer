@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Prompt Middleware — Route, Refine, Deliver.</title>
+  <link rel="stylesheet" href="landing.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body class="dark">
+
+  <!-- ── Particle canvas ── -->
+  <canvas id="particleCanvas" aria-hidden="true"></canvas>
+
+  <!-- ── Grid texture overlay ── -->
+  <div class="grid-overlay" aria-hidden="true"></div>
+
+  <!-- ── Animated aurora blobs ── -->
+  <div class="aurora-container" aria-hidden="true">
+    <div class="aurora aurora-1"></div>
+    <div class="aurora aurora-2"></div>
+    <div class="aurora aurora-3"></div>
+    <div class="aurora aurora-4"></div>
+  </div>
+
+  <!-- ── Page shell ── -->
+  <div id="pageShell">
+
+    <!-- ════ NAV ════ -->
+    <nav id="mainNav" role="navigation" aria-label="Main navigation">
+      <div class="nav-logo">
+        <div class="nav-logo-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L2 22H22L12 2Z" fill="white" opacity="0.9"/>
+            <path d="M12 8L7 20H17L12 8Z" fill="white"/>
+          </svg>
+        </div>
+        <span class="nav-logo-text">AI Middleware</span>
+        <span class="nav-logo-version">v2.0</span>
+      </div>
+
+      <div class="nav-links" role="list">
+        <a href="#how" class="nav-link" role="listitem">How it works</a>
+        <a href="#features" class="nav-link" role="listitem">Features</a>
+        <a href="#stack" class="nav-link" role="listitem">Tech Stack</a>
+      </div>
+
+      <div class="nav-right">
+        <button id="themeToggle" class="theme-toggle" aria-label="Toggle light/dark theme" role="switch" aria-checked="true">
+          <div class="theme-thumb" id="themeThumb">
+            <span id="themeIcon">🌙</span>
+          </div>
+        </button>
+        <button class="btn-nav-cta" id="btnNavCta" aria-label="Open tool">
+          Open Tool →
+        </button>
+      </div>
+    </nav>
+
+    <!-- ════ HERO ════ -->
+    <section class="hero" id="heroSection" aria-labelledby="heroHeading">
+
+      <!-- Floating badge -->
+      <div class="hero-badge" role="note">
+        <span class="glow-dot" aria-hidden="true"></span>
+        Powered by Ollama + pydantic-ai · 100% Local
+      </div>
+
+      <!-- Hero heading -->
+      <h1 class="hero-h1" id="heroHeading">
+        <svg class="hero-svg hero-svg-main" id="heroSvgMain"
+             viewBox="0 0 900 160" preserveAspectRatio="xMidYMid meet"
+             aria-hidden="true" focusable="false">
+          <defs>
+            <linearGradient id="gradDark" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%"   stop-color="#ffffff"/>
+              <stop offset="100%" stop-color="rgba(255,255,255,0.55)"/>
+            </linearGradient>
+            <linearGradient id="gradLight" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%"   stop-color="#0f172a"/>
+              <stop offset="100%" stop-color="#334155"/>
+            </linearGradient>
+          </defs>
+          <text class="hero-text-main" id="heroTextMain"
+                x="50%" y="60" text-anchor="middle" fill="url(#gradDark)">From raw idea</text>
+          <text class="hero-text-main" id="heroTextMain2"
+                x="50%" y="145" text-anchor="middle" fill="url(#gradDark)">to model-perfect</text>
+        </svg>
+
+        <svg class="hero-svg hero-svg-accent"
+             viewBox="0 0 900 90" preserveAspectRatio="xMidYMid meet"
+             aria-hidden="true" focusable="false">
+          <defs>
+            <linearGradient id="gradAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%"   stop-color="#6366f1"/>
+              <stop offset="50%"  stop-color="#a78bfa"/>
+              <stop offset="100%" stop-color="#e879f9"/>
+            </linearGradient>
+          </defs>
+          <text class="hero-text-accent"
+                x="50%" y="70" text-anchor="middle" fill="url(#gradAccent)">prompt. Instantly.</text>
+        </svg>
+
+        <span class="sr-only">From raw idea to model-perfect prompt. Instantly.</span>
+      </h1>
+
+      <!-- Subtitle -->
+      <p class="hero-sub" id="heroSub">
+        A local AI middleware that transforms messy human input into structured, 
+        provider-optimised prompts — with intelligent model routing, Pydantic schema validation, 
+        and support for 19+ models across 6 providers. All on your machine.
+      </p>
+
+      <!-- CTA buttons -->
+      <div class="hero-ctas">
+        <button class="btn-primary" id="btnPrimary" aria-live="polite">
+          ⚡ Initialize Middleware
+        </button>
+        <button class="btn-secondary" id="btnSecondary">
+          See How It Works ↓
+        </button>
+      </div>
+
+      <!-- Terminal preview pill -->
+      <div class="terminal-pill sr sr-pop" data-delay="200">
+        <span class="terminal-prompt">$</span>
+        <span class="terminal-cmd">uvicorn main:app --reload</span>
+        <span class="terminal-sep">·</span>
+        <span class="terminal-status">Running on <span class="terminal-highlight">localhost:8000</span></span>
+        <span class="terminal-dot-live"></span>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stats-row" id="statsRow" role="list" aria-label="Key statistics">
+        <div class="stat sr sr-pop" data-delay="0" role="listitem">
+          <span class="stat-val">19+</span>
+          <span class="stat-label">AI Models</span>
+        </div>
+        <div class="stat-divider" aria-hidden="true"></div>
+        <div class="stat sr sr-pop" data-delay="80" role="listitem">
+          <span class="stat-val">6</span>
+          <span class="stat-label">Providers</span>
+        </div>
+        <div class="stat-divider" aria-hidden="true"></div>
+        <div class="stat sr sr-pop" data-delay="160" role="listitem">
+          <span class="stat-val">10</span>
+          <span class="stat-label">Prompt Styles</span>
+        </div>
+        <div class="stat-divider" aria-hidden="true"></div>
+        <div class="stat sr sr-pop" data-delay="240" role="listitem">
+          <span class="stat-val">0ms</span>
+          <span class="stat-label">Data Sent Out</span>
+        </div>
+      </div>
+
+      <!-- Scroll cue -->
+      <div class="scroll-cue" aria-hidden="true">
+        <!-- <span class="scroll-label">Scroll</span> -->
+        <div class="scroll-line"></div>
+      </div>
+    </section>
+
+    <!-- ════ PROVIDER TICKER ════ -->
+    <section class="ticker-section" aria-label="Supported AI providers">
+      <div class="ticker-band">
+        <div class="ticker-wrap">
+          <div class="ticker" aria-hidden="true" id="tickerTrack"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ HOW IT WORKS ════ -->
+    <section class="how-section" id="how" aria-labelledby="howHeading">
+
+      <div class="section-header sr sr-left" data-delay="0">
+        <div class="section-eyebrow">How it works</div>
+        <h2 class="section-title" id="howHeading">
+          Three steps.<br />Perfect prompts.
+        </h2>
+        <p class="section-subtitle">PromptForge does the heavy lifting between your intent and the model.</p>
+      </div>
+
+      <div class="how-grid" role="list" aria-label="How it works steps">
+
+        <div class="how-card card-hover sr sr-pop" data-delay="0" role="listitem">
+          <div class="how-step-bg" aria-hidden="true">01</div>
+          <div class="how-card-icon">✍️</div>
+          <div class="how-eyebrow">Step 01</div>
+          <h3 class="how-title">Write your raw idea</h3>
+          <p class="how-desc">Paste anything — a vague description, scattered notes, half-formed thoughts. The middleware accepts messy human input as-is.</p>
+          <div class="how-card-example">
+            <span class="example-label">Input</span>
+            <span class="example-text">"make a chatbot that helps with customer support"</span>
+          </div>
+        </div>
+
+        <div class="how-card card-hover sr sr-pop" data-delay="120" role="listitem">
+          <div class="how-step-bg" aria-hidden="true">02</div>
+          <div class="how-card-icon">🎯</div>
+          <div class="how-eyebrow">Step 02</div>
+          <h3 class="how-title">Pick a model or use Auto</h3>
+          <p class="how-desc">Choose from 19+ models across Claude, GPT, Gemini, DeepSeek, Grok, and Copilot — or let the AI router match your task to the best fit automatically.</p>
+          <div class="how-card-example">
+            <span class="example-label">Router</span>
+            <span class="example-text">Llama 3.2 → selects claude-sonnet-4-6</span>
+          </div>
+        </div>
+
+        <div class="how-card card-hover sr sr-pop" data-delay="240" role="listitem">
+          <div class="how-step-bg" aria-hidden="true">03</div>
+          <div class="how-card-icon">⚡</div>
+          <div class="how-eyebrow">Step 03</div>
+          <h3 class="how-title">Get a structured prompt</h3>
+          <p class="how-desc">Receive a Pydantic-validated prompt with role, task, format, and constraints — formatted exactly for your target provider. Copy and use.</p>
+          <div class="how-card-example">
+            <span class="example-label">Output</span>
+            <span class="example-text">XML-structured · Pydantic-validated · Provider-native</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Flow diagram -->
+      <div class="flow-diagram sr" data-delay="100">
+        <div class="flow-node flow-node-input">
+          <span class="flow-node-icon">📝</span>
+          <span class="flow-node-label">Raw Input</span>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-line"></div>
+          <span class="flow-arrow-label">FastAPI /refine</span>
+        </div>
+        <div class="flow-node flow-node-llama">
+          <span class="flow-node-icon">🦙</span>
+          <span class="flow-node-label">Llama 3.2</span>
+          <span class="flow-node-sub">via Ollama</span>
+        </div>
+        <div class="flow-arrow">
+          <div class="flow-arrow-line"></div>
+          <span class="flow-arrow-label">Pydantic validation</span>
+        </div>
+        <div class="flow-node flow-node-output">
+          <span class="flow-node-icon">✨</span>
+          <span class="flow-node-label">Structured Prompt</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ FEATURES GRID ════ -->
+    <section class="features-section" id="features" aria-labelledby="featuresHeading">
+
+      <div class="section-header sr" data-delay="0" style="text-align:center; margin-bottom:72px;">
+        <div class="section-eyebrow" style="text-align:center;">Features</div>
+        <h2 class="section-title" id="featuresHeading" style="text-align:center;">
+          Production-grade<br />prompt engineering.
+        </h2>
+        <p class="features-sub">Everything you need to tame LLM input predictably — running entirely on your hardware.</p>
+      </div>
+
+      <div class="features-grid" role="list" aria-label="Features">
+
+        <div class="feature-card feature-card-large card-hover sr sr-pop" data-delay="0" role="listitem">
+          <div class="feature-header">
+            <div class="feature-icon-wrap">🧠</div>
+            <span class="feature-tag">Core</span>
+          </div>
+          <h3 class="feature-title">AI-Powered Prompt Refiner</h3>
+          <p class="feature-desc">Llama 3.2 runs locally via Ollama and transforms any raw input into a structured prompt with extracted role, task, output format, and strict constraints — validated by Pydantic.</p>
+          <div class="feature-code-block">
+            <span class="code-keyword">POST</span> <span class="code-path">/refine</span>
+            <span class="code-comment"> → RefinedPromptOutput</span>
+          </div>
+        </div>
+
+        <div class="feature-card card-hover sr sr-pop" data-delay="100" role="listitem">
+          <div class="feature-header">
+            <div class="feature-icon-wrap">⚡</div>
+            <span class="feature-tag">Smart</span>
+          </div>
+          <h3 class="feature-title">Intelligent Model Router</h3>
+          <p class="feature-desc">The Auto mode uses Llama to analyse your task and recommend the best model from your allowed list — with a runner-up and clear reasoning.</p>
+          <div class="feature-code-block">
+            <span class="code-keyword">POST</span> <span class="code-path">/suggest-model</span>
+          </div>
+        </div>
+
+        <div class="feature-card card-hover sr sr-pop" data-delay="200" role="listitem">
+          <div class="feature-header">
+            <div class="feature-icon-wrap">🎨</div>
+            <span class="feature-tag">Format</span>
+          </div>
+          <h3 class="feature-title">Provider-Native Formatting</h3>
+          <p class="feature-desc">Each prompt is formatted specifically for its target — XML tags for Claude, numbered sections for GPT, markdown headings for Gemini, terse specs for DeepSeek.</p>
+        </div>
+
+        <div class="feature-card card-hover sr sr-pop" data-delay="0" role="listitem">
+          <div class="feature-header">
+            <div class="feature-icon-wrap">🔒</div>
+            <span class="feature-tag">Private</span>
+          </div>
+          <h3 class="feature-title">Fully Local — Zero Leakage</h3>
+          <p class="feature-desc">Your prompts never leave your machine. Llama runs in Ollama, the API runs in FastAPI, and the UI is served locally. No telemetry, no cloud calls.</p>
+        </div>
+
+        <div class="feature-card card-hover sr sr-pop" data-delay="100" role="listitem">
+          <div class="feature-header">
+            <div class="feature-icon-wrap">📐</div>
+            <span class="feature-tag">Strict</span>
+          </div>
+          <h3 class="feature-title">Pydantic Schema Enforcement</h3>
+          <p class="feature-desc">Every output is typed and validated against <code>RefinedPromptOutput</code> — role, task, format, constraints, and the final prompt are guaranteed to match the schema.</p>
+        </div>
+
+        <div class="feature-card card-hover sr sr-pop" data-delay="200" role="listitem">
+          <div class="feature-header">
+            <div class="feature-icon-wrap">🌐</div>
+            <span class="feature-tag">Universal</span>
+          </div>
+          <h3 class="feature-title">19+ Models, 6 Providers</h3>
+          <p class="feature-desc">Claude, GPT-5.x, Gemini 3, DeepSeek V3, Grok 3, Copilot — with free/paid tiers, per-model strengths, and smart hallucination guards on model IDs.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ════ TECH STACK ════ -->
+    <section class="stack-section" id="stack" aria-labelledby="stackHeading">
+      <div class="section-header sr" data-delay="0" style="text-align:center; margin-bottom:56px;">
+        <div class="section-eyebrow" style="text-align:center;">Tech Stack</div>
+        <h2 class="section-title" id="stackHeading" style="text-align:center;">
+          Built on solid<br />open-source foundations.
+        </h2>
+      </div>
+
+      <div class="stack-grid" role="list">
+        <div class="stack-card sr sr-pop" data-delay="0" role="listitem">
+          <div class="stack-icon">🦙</div>
+          <div class="stack-info">
+            <span class="stack-name">Ollama + Llama 3.2</span>
+            <span class="stack-role">Local inference engine</span>
+          </div>
+        </div>
+        <div class="stack-card sr sr-pop" data-delay="60" role="listitem">
+          <div class="stack-icon">⚡</div>
+          <div class="stack-info">
+            <span class="stack-name">FastAPI</span>
+            <span class="stack-role">API layer (/refine, /suggest-model)</span>
+          </div>
+        </div>
+        <div class="stack-card sr sr-pop" data-delay="120" role="listitem">
+          <div class="stack-icon">🔷</div>
+          <div class="stack-info">
+            <span class="stack-name">pydantic-ai</span>
+            <span class="stack-role">Structured agent outputs</span>
+          </div>
+        </div>
+        <div class="stack-card sr sr-pop" data-delay="180" role="listitem">
+          <div class="stack-icon">🌐</div>
+          <div class="stack-info">
+            <span class="stack-name">Vanilla HTML/CSS/JS</span>
+            <span class="stack-role">Zero-dependency frontend</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ CTA BAND ════ -->
+    <section class="cta-section" aria-labelledby="ctaHeading">
+      <div class="cta-card sr sr-pop" data-delay="0">
+        <div class="cta-glow" aria-hidden="true"></div>
+        <div class="cta-emoji" aria-hidden="true">⚡</div>
+        <h2 class="cta-title" id="ctaHeading">Start refining prompts.</h2>
+        <p class="cta-sub">
+          Ollama running? The middleware is ready. Open the tool, paste your idea, and get a production-quality prompt in seconds — no cloud, no keys, no limits.
+        </p>
+        <div class="cta-prereqs">
+          <span class="prereq-item">
+            <span class="prereq-dot"></span>Ollama installed
+          </span>
+          <span class="prereq-item">
+            <span class="prereq-dot"></span>llama3.2 pulled
+          </span>
+          <span class="prereq-item">
+            <span class="prereq-dot"></span>uvicorn running
+          </span>
+        </div>
+        <button class="btn-cta-main" id="btnCtaMain">
+          ⚡ Initialize Middleware
+        </button>
+      </div>
+    </section>
+
+    <!-- ════ FOOTER ════ -->
+    <footer class="site-footer" role="contentinfo">
+      <div class="footer-brand">
+        <div class="footer-logo-icon" aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L2 22H22L12 2Z" fill="white"/>
+          </svg>
+        </div>
+        <span class="footer-brand-text">AI Prompt Middleware · Local & Private</span>
+      </div>
+      <div class="footer-links">
+        <span class="footer-powered">Powered by Ollama + pydantic-ai</span>
+        <span class="footer-sep">·</span>
+        <span class="footer-powered">FastAPI + Llama 3.2</span>
+      </div>
+    </footer>
+
+  </div><!-- /#pageShell -->
+
+  <script src="landing.js"></script>
+</body>
+</html>

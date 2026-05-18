@@ -1,0 +1,16 @@
+/* shared/css/reset.css
+   Common baseline reset — import first in any page stylesheet.
+   Both landing.css and tool.css include these rules inline for now;
+   this file is the canonical single source if you ever switch to
+   a build step (Vite, Parcel, etc.) that can @import across features. */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.35); border-radius: 2px; }
+
+/* Typography baseline */
+body { -webkit-font-smoothing: antialiased; overflow-x: hidden; }

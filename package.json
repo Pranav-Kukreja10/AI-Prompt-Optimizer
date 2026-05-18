@@ -1,0 +1,15 @@
+{
+  "name": "ai-middleware-frontend",
+  "version": "1.0.0",
+  "description": "AI Prompt Middleware — vanilla HTML/CSS/JS frontend",
+  "private": true,
+  "scripts": {
+    "dev":   "node server/dev.js",
+    "start": "node server/dev.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
