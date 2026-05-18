@@ -124,13 +124,13 @@
       </div>
 
       <!-- Terminal preview pill -->
-      <div class="terminal-pill sr sr-pop" data-delay="200">
+      <!-- <div class="terminal-pill sr sr-pop" data-delay="200">
         <span class="terminal-prompt">$</span>
         <span class="terminal-cmd">uvicorn main:app --reload</span>
         <span class="terminal-sep">·</span>
         <span class="terminal-status">Running on <span class="terminal-highlight">localhost:8000</span></span>
         <span class="terminal-dot-live"></span>
-      </div>
+      </div> -->
 
       <!-- Stats row -->
       <div class="stats-row" id="statsRow" role="list" aria-label="Key statistics">
@@ -179,7 +179,7 @@
         <h2 class="section-title" id="howHeading">
           Three steps.<br />Perfect prompts.
         </h2>
-        <p class="section-subtitle">PromptForge does the heavy lifting between your intent and the model.</p>
+        <p class="section-subtitle">AI prompt Middleware does the heavy lifting between your intent and the model.</p>
       </div>
 
       <div class="how-grid" role="list" aria-label="How it works steps">
@@ -204,7 +204,7 @@
           <p class="how-desc">Choose from 19+ models across Claude, GPT, Gemini, DeepSeek, Grok, and Copilot — or let the AI router match your task to the best fit automatically.</p>
           <div class="how-card-example">
             <span class="example-label">Router</span>
-            <span class="example-text">Llama 3.2 → selects claude-sonnet-4-6</span>
+            <span class="example-text">Llama 3.5 → selects claude-sonnet-4-6</span>
           </div>
         </div>
 
@@ -233,7 +233,7 @@
         </div>
         <div class="flow-node flow-node-llama">
           <span class="flow-node-icon">🦙</span>
-          <span class="flow-node-label">Llama 3.2</span>
+          <span class="flow-node-label">Llama 3.5</span>
           <span class="flow-node-sub">via Ollama</span>
         </div>
         <div class="flow-arrow">
@@ -253,7 +253,7 @@
       <div class="section-header sr" data-delay="0" style="text-align:center; margin-bottom:72px;">
         <div class="section-eyebrow" style="text-align:center;">Features</div>
         <h2 class="section-title" id="featuresHeading" style="text-align:center;">
-          Production-grade<br />prompt engineering.
+          Industry-grade<br />prompt engineering.
         </h2>
         <p class="features-sub">Everything you need to tame LLM input predictably — running entirely on your hardware.</p>
       </div>
@@ -266,7 +266,7 @@
             <span class="feature-tag">Core</span>
           </div>
           <h3 class="feature-title">AI-Powered Prompt Refiner</h3>
-          <p class="feature-desc">Llama 3.2 runs locally via Ollama and transforms any raw input into a structured prompt with extracted role, task, output format, and strict constraints — validated by Pydantic.</p>
+          <p class="feature-desc">Llama 3.5 runs locally via Ollama and transforms any raw input into a structured prompt with extracted role, task, output format, and strict constraints — validated by Pydantic.</p>
           <div class="feature-code-block">
             <span class="code-keyword">POST</span> <span class="code-path">/refine</span>
             <span class="code-comment"> → RefinedPromptOutput</span>
@@ -337,7 +337,7 @@
         <div class="stack-card sr sr-pop" data-delay="0" role="listitem">
           <div class="stack-icon">🦙</div>
           <div class="stack-info">
-            <span class="stack-name">Ollama + Llama 3.2</span>
+            <span class="stack-name">Ollama + Llama 3.5</span>
             <span class="stack-role">Local inference engine</span>
           </div>
         </div>
@@ -379,7 +379,7 @@
             <span class="prereq-dot"></span>Ollama installed
           </span>
           <span class="prereq-item">
-            <span class="prereq-dot"></span>llama3.2 pulled
+            <span class="prereq-dot"></span>llama3.5 pulled
           </span>
           <span class="prereq-item">
             <span class="prereq-dot"></span>uvicorn running
@@ -404,7 +404,7 @@
       <div class="footer-links">
         <span class="footer-powered">Powered by Ollama + pydantic-ai</span>
         <span class="footer-sep">·</span>
-        <span class="footer-powered">FastAPI + Llama 3.2</span>
+        <span class="footer-powered">FastAPI + Llama 3.5</span>
       </div>
     </footer>
 
