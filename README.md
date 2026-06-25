@@ -1,2 +1,2 @@
-# AI-Prompt-Middleware
+# AI-Prompt-Optimizer
 
