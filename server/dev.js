@@ -90,8 +90,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── Resolve file path ──────────────────────────────────────
-  let filePath = path.join(ROOT, url === "/" ? "/index.html" : url);
+  // ── Resolve file path ──────────────────────────────────────────
+  // Redirect root to /landing/ so relative asset paths resolve correctly
+  if (url === "/") {
+    res.writeHead(302, { "Location": "/landing/" });
+    res.end();
+    return;
+  }
+  let filePath = path.join(ROOT, url);
 
   // Directory → serve its index.html
   if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {

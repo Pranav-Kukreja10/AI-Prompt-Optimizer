@@ -348,27 +348,57 @@ def _backend_error_message() -> str:
 refiner_chain = _resolve_model_chain(GEMMA_MODEL_REFINE)   # e.g. [("gemma-4-31b-it", m), ("gemini-3.5-flash", m), ("gemini-3.5-flash-lite", m)]
 router_chain  = _resolve_model_chain(GEMMA_MODEL_ROUTER)   # e.g. [("gemma-4-26b-a4b-it", m), ("gemini-3.5-flash", m), ("gemini-3.5-flash-lite", m)]
 
-REFINER_SYSTEM_PROMPT = (
+REFINER_SYSTEM_PROMPT_LOCAL = (
     "You are a Master Prompt Engineer. "
     "Transform messy human input into a structured AI prompt. "
     "Extract role, task, format, constraints, and a formatted_prompt. "
     "Be precise — no filler text."
 )
 
+REFINER_SYSTEM_PROMPT_CLOUD = (
+    "You are a prompt-engineering agent. Your sole task is to convert "
+    "raw user input into a structured AI prompt.\n\n"
+    "CONTRACT:\n"
+    "- role: one-sentence persona the target AI must adopt\n"
+    "- task: the specific action, stated as a clear imperative\n"
+    "- format: exact output structure the user expects "
+    "(e.g. bullet list, JSON, table, essay)\n"
+    "- constraints: 3-5 non-negotiable rules, each ≤15 words\n"
+    "- formatted_prompt: the final ready-to-paste prompt, fully self-contained, "
+    "written for the target model's preferred syntax\n\n"
+    "RULES:\n"
+    "1. Never add filler, preamble, or meta-commentary\n"
+    "2. If the user's intent is ambiguous, choose the most reasonable interpretation\n"
+    "3. Constraints must be actionable and verifiable, not vague\n"
+    "4. The formatted_prompt must integrate role + task + format + constraints "
+    "into a single coherent prompt — not just concatenate them"
+)
+
 
 def _make_refiner_agent(model) -> Agent:
     """Builds one refiner Agent bound to a specific model, with the dynamic
-    style/format system-prompt injector attached."""
+    style/format system-prompt injector attached.  Selects between local
+    (Ollama-optimised) and cloud (Gemma/Gemini-optimised) system prompts."""
+    system = REFINER_SYSTEM_PROMPT_CLOUD if CLOUD_MODE else REFINER_SYSTEM_PROMPT_LOCAL
     agent = Agent(
         model,
         deps_type=RefineDeps,
         output_type=RefinedPromptOutput,
-        system_prompt=REFINER_SYSTEM_PROMPT,
+        system_prompt=system,
     )
 
     @agent.system_prompt
     def inject_style_and_format(ctx: RunContext[RefineDeps]) -> str:
         fmt = FORMAT_INSTRUCTIONS.get(ctx.deps.target_provider, FORMAT_INSTRUCTIONS["ChatGPT"])
+        if CLOUD_MODE:
+            return (
+                f"\nSTYLE CONTRACT: Every field you produce must reflect a "
+                f"{ctx.deps.style} tone. "
+                f"This affects word choice and register, NOT content accuracy.\n"
+                f"FORMAT CONTRACT: {fmt}\n"
+                f"CRITICAL: The formatted_prompt field must use the "
+                f"FORMAT CONTRACT syntax exactly."
+            )
         return (
             f"\nSTYLE: Write all parameters in a {ctx.deps.style} tone.\n"
             f"FORMAT RULE: {fmt}"
@@ -393,19 +423,44 @@ def build_router_agents(eligible_models: dict):
         f'  "{mid}": {", ".join(info["strengths"][:4])}'
         for mid, info in eligible_models.items()
     )
-    system = (
-        "You are a neutral AI Model Router. Match the user task to the best model.\n\n"
-        f"VALID MODEL IDs — you MUST return one of these, copied character-for-character:\n{id_list_json}\n\n"
-        f"Strengths per model:\n{strengths_lines}\n\n"
-        "STRICT OUTPUT RULES:\n"
-        "- recommended_model: copy one ID exactly from the list above\n"
-        "- runner_up: copy a DIFFERENT ID exactly from the list above\n"
-        "- recommended_provider: the provider name matching recommended_model\n"
-        "- reason: one sentence why this model fits best\n"
-        "- runner_up_reason: one sentence why runner_up is second\n"
-        "- NEVER invent, abbreviate, or paraphrase model IDs\n"
-        "- Pick by task fit only — no provider preference"
-    )
+
+    if CLOUD_MODE:
+        system = (
+            "You are a model-selection agent. Given a user task, pick the "
+            "best AI model.\n\n"
+            "DECISION PROCEDURE:\n"
+            "1. Read the user task\n"
+            "2. Identify the dominant skill required (coding, reasoning, "
+            "creative writing, speed, cost, multimodal, etc.)\n"
+            "3. Match that skill to the model strengths below\n"
+            "4. Pick the best match as recommended_model; pick the "
+            "second-best as runner_up\n\n"
+            f"ALLOWED MODEL IDs (copy one EXACTLY, character-for-character):\n"
+            f"{id_list_json}\n\n"
+            f"MODEL STRENGTHS:\n{strengths_lines}\n\n"
+            "OUTPUT CONSTRAINTS:\n"
+            "- recommended_model: one ID from the allowed list, copied exactly\n"
+            "- runner_up: a DIFFERENT ID from the allowed list, copied exactly\n"
+            "- recommended_provider: the provider name for the recommended model\n"
+            "- reason: one sentence explaining the match (≤25 words)\n"
+            "- runner_up_reason: one sentence (≤25 words)\n"
+            "- NEVER invent, abbreviate, or modify model IDs"
+        )
+    else:
+        system = (
+            "You are a neutral AI Model Router. Match the user task to the best model.\n\n"
+            f"VALID MODEL IDs — you MUST return one of these, copied character-for-character:\n{id_list_json}\n\n"
+            f"Strengths per model:\n{strengths_lines}\n\n"
+            "STRICT OUTPUT RULES:\n"
+            "- recommended_model: copy one ID exactly from the list above\n"
+            "- runner_up: copy a DIFFERENT ID exactly from the list above\n"
+            "- recommended_provider: the provider name matching recommended_model\n"
+            "- reason: one sentence why this model fits best\n"
+            "- runner_up_reason: one sentence why runner_up is second\n"
+            "- NEVER invent, abbreviate, or paraphrase model IDs\n"
+            "- Pick by task fit only — no provider preference"
+        )
+
     return [
         (name, Agent(model, deps_type=None, output_type=RouterOutput, system_prompt=system))
         for name, model in router_chain
