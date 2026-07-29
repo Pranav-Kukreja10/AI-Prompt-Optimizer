@@ -45,7 +45,7 @@ app.add_middleware(
 #
 # Set this in your .env file or your hosting platform's environment variables.
 # ══════════════════════════════════════════════════════════════════════════════
-CLOUD_MODE = os.getenv("CLOUD_MODE", "true").strip().lower() in ("1", "true", "yes")
+CLOUD_MODE = os.getenv("CLOUD_MODE", "false").strip().lower() in ("1", "true", "yes")
 
 # ── Local (Ollama) config ─────────────────────────────────────────────────────
 # Requires Ollama running locally: https://ollama.com
@@ -260,7 +260,13 @@ MODEL_REGISTRY: dict[str, dict] = {
 
 # ── Prompt format templates ───────────────────────────────────────────────────
 FORMAT_INSTRUCTIONS: dict[str, str] = {
-    "Claude":   "Use XML tags: <role>, <context>, <task>, <format>, <constraints>. Claude responds best to structured XML.",
+    "Claude": (
+    "Use flat, sibling-level XML tags — NOT nested inside one another: "
+    "<role>...</role> <context>...</context> <task>...</task> "
+    "<format>...</format> <constraints>...</constraints>. "
+    "Every tag you open MUST have a matching closing tag. "
+    "Claude responds best to structured XML."
+),
     "ChatGPT":  "Start with 'You are [role].' then numbered sections: 1. Context 2. Task 3. Output format 4. Rules. GPT responds best to numbered imperative sections.",
     "Gemini":   "Use ## markdown headings: ## Role, ## Background, ## Task, ## Output Format, ## Constraints. Gemini responds best to clear markdown hierarchy.",
     "DeepSeek": "Use terse spec format: ROLE: / OBJECTIVE: / OUTPUT: / RULES: 1. 2. DeepSeek responds best to concise technical specs.",
@@ -492,3 +498,24 @@ def health():
         "model": OLLAMA_MODEL,
         "ollama_url": OLLAMA_BASE_URL,
     }
+
+
+# ── Optional static files serving for monolithic deployment ──────────────────
+try:
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+
+    if os.path.exists("landing"):
+        app.mount("/landing", StaticFiles(directory="landing"), name="landing")
+    if os.path.exists("tool"):
+        app.mount("/tool", StaticFiles(directory="tool"), name="tool")
+    if os.path.exists("shared"):
+        app.mount("/shared", StaticFiles(directory="shared"), name="shared")
+
+    @app.get("/")
+    def read_root():
+        if os.path.exists("index.html"):
+            return FileResponse("index.html")
+        return {"message": "AI Prompt Middleware Backend is running!"}
+except Exception as e:
+    print(f"[STATIC MOUNT WARNING] Could not mount static files: {e}")
