@@ -5,20 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dataclasses import dataclass
 from pydantic_ai import Agent, RunContext
-
-try:
-    from pydantic_ai.models.ollama import OllamaModel
-    from pydantic_ai.providers.ollama import OllamaProvider
-except ImportError:
-    try:
-        from pydantic_ai.models.openai import OpenAIModel
-        from pydantic_ai.providers.openai import OpenAIProvider
-    except ImportError:
-        OpenAIModel = None
-        OpenAIProvider = None
-
-    OllamaModel = None
-    OllamaProvider = None
+from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.providers.ollama import OllamaProvider
 
 from dotenv import load_dotenv
 
@@ -28,7 +16,7 @@ app = FastAPI(title="AI Prompt Middleware", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["*"], 
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -38,13 +26,10 @@ app.add_middleware(
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "llama3.2")   # swap to "llama3.1:8b" if preferred
 
-if OllamaModel is not None and OllamaProvider is not None:
-    llama = OllamaModel(
-        OLLAMA_MODEL,
-        provider=OllamaProvider(base_url=OLLAMA_BASE_URL)
-    )
-else:
-    llama = None
+llama = OllamaModel(
+    OLLAMA_MODEL,
+    provider=OllamaProvider(base_url=OLLAMA_BASE_URL)
+)
 
 # ── Model registry ────────────────────────────────────────────────────────────
 MODEL_REGISTRY: dict[str, dict] = {
@@ -209,37 +194,30 @@ def snap_to_valid_id(candidate: str, valid_ids: list[str]) -> str:
 
 
 # ── Refiner agent ─────────────────────────────────────────────────────────────
-if llama is None:
-    refiner_agent = None
-else:
-    refiner_agent = Agent(
-        llama,
-        deps_type=RefineDeps,
-        output_type=RefinedPromptOutput,
-        system_prompt=(
-            "You are a Master Prompt Engineer. "
-            "Transform messy human input into a structured AI prompt. "
-            "Extract role, task, format, constraints, and a formatted_prompt. "
-            "Be precise — no filler text."
-        ),
+refiner_agent = Agent(
+    llama,
+    deps_type=RefineDeps,
+    output_type=RefinedPromptOutput,
+    system_prompt=(
+        "You are a Master Prompt Engineer. "
+        "Transform messy human input into a structured AI prompt. "
+        "Extract role, task, format, constraints, and a formatted_prompt. "
+        "Be precise — no filler text."
+    ),
+)
+
+
+@refiner_agent.system_prompt
+def inject_style_and_format(ctx: RunContext[RefineDeps]) -> str:
+    fmt = FORMAT_INSTRUCTIONS.get(ctx.deps.target_provider, FORMAT_INSTRUCTIONS["ChatGPT"])
+    return (
+        f"\nSTYLE: Write all parameters in a {ctx.deps.style} tone.\n"
+        f"FORMAT RULE: {fmt}"
     )
 
 
-if refiner_agent is not None:
-    @refiner_agent.system_prompt
-    def inject_style_and_format(ctx: RunContext[RefineDeps]) -> str:
-        fmt = FORMAT_INSTRUCTIONS.get(ctx.deps.target_provider, FORMAT_INSTRUCTIONS["ChatGPT"])
-        return (
-            f"\nSTYLE: Write all parameters in a {ctx.deps.style} tone.\n"
-            f"FORMAT RULE: {fmt}"
-        )
-
-
 # ── Router agent (built per-request with the eligible model subset) ───────────
-def build_router_agent(eligible_models: dict):
-    if llama is None:
-        raise RuntimeError("No compatible model backend is available. Install a supported pydantic-ai provider or adjust the Ollama integration.")
-
+def build_router_agent(eligible_models: dict) -> Agent:
     valid_ids       = list(eligible_models.keys())
     id_list_json    = json.dumps(valid_ids)
     strengths_lines = "\n".join(
@@ -269,9 +247,6 @@ async def refine_prompt(request: PromptRequest):
     try:
         info     = MODEL_REGISTRY.get(request.target_model, {})
         provider = info.get("provider", "ChatGPT")
-        if refiner_agent is None:
-            raise RuntimeError("The backend model is not available. Start Ollama or install the required pydantic-ai provider package.")
-
         deps     = RefineDeps(style=request.style, target_provider=provider)
         result   = await refiner_agent.run(request.user_input, deps=deps)
         data     = result.output.model_dump()

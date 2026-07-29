@@ -4,8 +4,8 @@
   "description": "AI Prompt Middleware — vanilla HTML/CSS/JS frontend",
   "private": true,
   "scripts": {
-    "dev":   "node server/dev.js",
-    "start": "node server/dev.js"
+    "dev": "node start-dev.js",
+    "start": "node start-dev.js"
   },
   "engines": {
     "node": ">=18"

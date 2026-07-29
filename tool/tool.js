@@ -47,7 +47,7 @@ const GROUPED = {};
 ALL_PROVIDERS.forEach(p => { GROUPED[p] = []; });
 ALL_MODEL_IDS.forEach(id => GROUPED[MODELS[id].provider].push(id));
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://127.0.0.1:8000";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STATE MANAGEMENT (PROXY)

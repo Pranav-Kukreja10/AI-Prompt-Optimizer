@@ -1,0 +1,9 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "ollama": true,
+        "/^cd /d/ai-prompt-optimizer ; node --check start-dev\\.js ; node --check server/dev\\.js$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
