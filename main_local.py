@@ -6,156 +6,45 @@ from pydantic import BaseModel, Field
 from dataclasses import dataclass
 from pydantic_ai import Agent, RunContext
 
-# ── Backend model imports ─────────────────────────────────────────────────────
-# Local: Ollama (Llama etc.)          Cloud: Gemini (via Google AI Studio)
-# Both are optional imports — missing SDKs degrade gracefully instead of
-# crashing the app at startup.
 try:
     from pydantic_ai.models.ollama import OllamaModel
     from pydantic_ai.providers.ollama import OllamaProvider
 except ImportError:
+    try:
+        from pydantic_ai.models.openai import OpenAIModel
+        from pydantic_ai.providers.openai import OpenAIProvider
+    except ImportError:
+        OpenAIModel = None
+        OpenAIProvider = None
+
     OllamaModel = None
     OllamaProvider = None
-
-try:
-    from pydantic_ai.models.google import GoogleModel
-    from pydantic_ai.providers.google import GoogleProvider
-except ImportError:
-    GoogleModel = None
-    GoogleProvider = None
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-app = FastAPI(title="AI Prompt Middleware", version="3.0.0")
+app = FastAPI(title="AI Prompt Middleware", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["*"],
+    allow_methods=["*"], 
     allow_headers=["*"],
 )
 
-# ══════════════════════════════════════════════════════════════════════════════
-# BACKEND SWITCH
-# This is the one knob that decides everything: local dev vs deployed portfolio.
-#
-#   CLOUD_MODE=true   -> Gemini API (no local server needed, good for a hosted demo)
-#   CLOUD_MODE=false  -> your existing local Ollama server (default, unchanged)
-#
-# Set this in your .env file or your hosting platform's environment variables.
-# ══════════════════════════════════════════════════════════════════════════════
-CLOUD_MODE = os.getenv("CLOUD_MODE", "true").strip().lower() in ("1", "true", "yes")
-
-# ── Local (Ollama) config ─────────────────────────────────────────────────────
+# ── Llama model via Ollama ────────────────────────────────────────────────────
 # Requires Ollama running locally: https://ollama.com
 # Pull the model first: `ollama pull llama3.2` or `ollama pull llama3.1:8b`
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "llama3.2")
+OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "llama3.2")   # swap to "llama3.1:8b" if preferred
 
-# ── Cloud config ───────────────────────────────────────────────────────────────
-# Free tier via Google AI Studio: https://aistudio.google.com/apikey
-# Both Gemini and Gemma models are served from the SAME Gemini API endpoint and
-# the SAME API key — Gemma 4 is Google's open-weight family, hosted for free
-# (rate-limited) alongside Gemini itself.
-#
-# Real free-tier rate limits (confirmed via Google AI Studio, July 2026):
-#   gemini-3.5-flash        5 RPM  / 250K TPM / 20 RPD   <- painfully low
-#   gemini-3.5-flash-lite  15 RPM  / 250K TPM / 500 RPD
-#   gemini-3.6-flash        5 RPM  / 250K TPM / 20 RPD
-# Gemma models on the free tier have separate, much friendlier quotas, which is
-# why they're the PRIMARY engines here — Gemini Flash models are only kept
-# around as a safety net for when Gemma gets rate-limited.
-#
-# NOTE: model ID strings shift over time — if any of these 404, open Google AI
-# Studio's model picker, copy the exact current ID, and set it as an env var
-# (no code change needed).
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-
-# Primary engines — Gemma 4, open-weight, hosted for free on the Gemini API.
-# Heavier task (/refine: extracts role/task/format/constraints/formatted_prompt)
-# gets the bigger dense model; lighter task (/suggest-model: picks one ID from
-# a short list) gets the faster MoE model.
-GEMMA_MODEL_REFINE = os.getenv("GEMMA_MODEL_REFINE", "gemma-4-31b-it")
-GEMMA_MODEL_ROUTER = os.getenv("GEMMA_MODEL_ROUTER", "gemma-4-26b-a4b-it")
-
-# Fallback chain — only used when the primary Gemma call hits a 429 / quota
-# error. Tried in order, left to right. Comma-separated so you can reorder or
-# extend it (e.g. add "gemini-3.6-flash") without touching code.
-GEMINI_FALLBACK_MODELS = [
-    m.strip() for m in os.getenv(
-        "GEMINI_FALLBACK_MODELS", "gemini-3.5-flash,gemini-3.5-flash-lite"
-    ).split(",") if m.strip()
-]
-
-
-def _build_ollama_model(model_name: str):
-    if OllamaModel is None or OllamaProvider is None:
-        return None
-    return OllamaModel(model_name, provider=OllamaProvider(base_url=OLLAMA_BASE_URL))
-
-
-def _build_gemini_model(model_name: str):
-    """Builds a Gemini-API-backed model — works for both Gemini and Gemma model IDs,
-    since Gemma is served through the same generativelanguage.googleapis.com endpoint."""
-    if GoogleModel is None or GoogleProvider is None:
-        return None
-    if not GEMINI_API_KEY:
-        return None
-    return GoogleModel(model_name, provider=GoogleProvider(api_key=GEMINI_API_KEY))
-
-
-def _resolve_model_chain(primary_model_name: str) -> list[tuple[str, object]]:
-    """Returns an ordered list of (model_name, model_instance) to try for a given
-    task. Local mode has no fallback chain (just Ollama). Cloud mode tries the
-    Gemma primary first, then each Gemini Flash fallback in order."""
-    if not CLOUD_MODE:
-        m = _build_ollama_model(OLLAMA_MODEL)
-        return [(OLLAMA_MODEL, m)] if m else []
-
-    chain: list[tuple[str, object]] = []
-    primary = _build_gemini_model(primary_model_name)
-    if primary is not None:
-        chain.append((primary_model_name, primary))
-    for fb_name in GEMINI_FALLBACK_MODELS:
-        fb = _build_gemini_model(fb_name)
-        if fb is not None:
-            chain.append((fb_name, fb))
-    return chain
-
-
-def _is_rate_limited(exc: Exception) -> bool:
-    """Detects 429 / quota-exhausted errors so we only fall back for THOSE,
-    not for genuine bugs (bad input, auth failures, schema mismatches, etc.)."""
-    status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
-    if status == 429:
-        return True
-    msg = str(exc).lower()
-    return any(
-        token in msg
-        for token in ("429", "resource_exhausted", "rate limit", "rate-limit", "quota", "too many requests")
+if OllamaModel is not None and OllamaProvider is not None:
+    llama = OllamaModel(
+        OLLAMA_MODEL,
+        provider=OllamaProvider(base_url=OLLAMA_BASE_URL)
     )
-
-
-async def run_with_fallback(agents: list, prompt: str, **run_kwargs):
-    """Runs prompt against agents in order. Moves to the next agent ONLY on a
-    detected rate-limit error; any other exception is raised immediately.
-    Returns (model_name_used, result)."""
-    if not agents:
-        raise RuntimeError(_backend_error_message())
-
-    last_exc = None
-    for i, (name, agent) in enumerate(agents):
-        try:
-            result = await agent.run(prompt, **run_kwargs)
-            return name, result
-        except Exception as e:
-            last_exc = e
-            if _is_rate_limited(e) and i < len(agents) - 1:
-                print(f"[FALLBACK] {name} rate-limited (429) — trying next model in chain...")
-                continue
-            raise
-    raise last_exc  # pragma: no cover — unreachable, agents is non-empty
+else:
+    llama = None
 
 # ── Model registry ────────────────────────────────────────────────────────────
 MODEL_REGISTRY: dict[str, dict] = {
@@ -199,27 +88,25 @@ MODEL_REGISTRY: dict[str, dict] = {
         "strengths": ["agentic coding", "long-horizon code tasks", "codebase navigation", "automated software engineering"],
         "weaknesses": ["code only, not general"],
     },
-    "gemini-3.6-flash":  {
-        "provider": "Gemini", "free": True, "paid": True,
-        "strengths": ["fast multimodal", "large 1M context", "agentic tasks", "cost efficient", "high RPM/TPM on free tier"],
-        "weaknesses": ["not as deep as Pro-tier reasoning"],
-        "rate_limits_free": {"rpm": 15, "tpm": 1_000_000, "rpd": 1500},
-    },
-    "gemini-3.5-flash-lite": {
-        "provider": "Gemini", "free": True, "paid": True,
-        "strengths": ["very fast", "highest free-tier RPM", "lightweight structured output", "cost efficient", "classification/routing"],
-        "weaknesses": ["less depth than full Flash or Pro"],
-        "rate_limits_free": {"rpm": 30, "tpm": 1_000_000, "rpd": 1500},
-    },
     "gemini-3.1-pro":    {
         "provider": "Gemini", "free": False, "paid": True,
-        "strengths": ["multimodal", "advanced math", "coding", "image understanding", "2M context"],
-        "weaknesses": ["paid tier only", "very low free-tier RPM if enabled (~2)"],
+        "strengths": ["multimodal", "advanced math", "coding", "image understanding", "vibe coding"],
+        "weaknesses": ["slower than Flash"],
+    },
+    "gemini-3-flash":    {
+        "provider": "Gemini", "free": True, "paid": True,
+        "strengths": ["fast multimodal", "image and text", "speed", "cost efficient"],
+        "weaknesses": ["less depth than Pro"],
+    },
+    "gemini-2.5-pro":    {
+        "provider": "Gemini", "free": False, "paid": True,
+        "strengths": ["2M token context", "massive document processing", "data analysis", "full codebase review"],
+        "weaknesses": ["older generation"],
     },
     "gemini-2.5-flash":  {
         "provider": "Gemini", "free": True, "paid": True,
         "strengths": ["balanced", "large context", "reasoning", "high volume", "cost efficient"],
-        "weaknesses": ["superseded by 3.x Flash"],
+        "weaknesses": ["less capable than 2.5 Pro"],
     },
     "deepseek-v3.2":     {
         "provider": "DeepSeek", "free": True, "paid": True,
@@ -278,7 +165,7 @@ class RefineDeps:
 class RefinedPromptOutput(BaseModel):
     role: str               = Field(description="The persona the AI should adopt.")
     task: str               = Field(description="The specific action or objective.")
-    format: str              = Field(description="The exact output format expected.")
+    format: str             = Field(description="The exact output format expected.")
     constraints: list[str]  = Field(description="3-5 strict rules.")
     formatted_prompt: str   = Field(description="Full ready-to-paste prompt formatted for the target model.")
 
@@ -308,9 +195,11 @@ def snap_to_valid_id(candidate: str, valid_ids: list[str]) -> str:
     """Snap a hallucinated / mis-cased model ID to the nearest real one."""
     if candidate in valid_ids:
         return candidate
+    # Case-insensitive exact match
     for v in valid_ids:
         if v.lower() == candidate.lower():
             return v
+    # Best partial token match
     best, best_score = valid_ids[0], 0
     for v in valid_ids:
         score = sum(1 for part in v.split("-") if part.lower() in candidate.lower())
@@ -319,48 +208,25 @@ def snap_to_valid_id(candidate: str, valid_ids: list[str]) -> str:
     return best
 
 
-def _backend_error_message() -> str:
-    if CLOUD_MODE:
-        if GoogleModel is None or GoogleProvider is None:
-            return (
-                "CLOUD_MODE is enabled but the Gemini provider isn't installed. "
-                "Run: pip install 'pydantic-ai[google]' (or the current Google extra for your pydantic-ai version)."
-            )
-        if not GEMINI_API_KEY:
-            return (
-                "CLOUD_MODE is enabled but GEMINI_API_KEY is not set. "
-                "Get a free key at https://aistudio.google.com/apikey and set it as an env var."
-            )
-        return "Gemini/Gemma backend failed to initialize — check GEMMA_MODEL_REFINE / GEMMA_MODEL_ROUTER / GEMINI_FALLBACK_MODELS are valid model IDs."
-    return (
-        "CLOUD_MODE is disabled but no local Ollama backend is available. "
-        "Start Ollama (https://ollama.com) or install a supported pydantic-ai provider."
-    )
-
-
-# ── Model chains (primary + fallback), resolved once at startup ──────────────
-refiner_chain = _resolve_model_chain(GEMMA_MODEL_REFINE)   # e.g. [("gemma-4-31b-it", m), ("gemini-3.5-flash", m), ("gemini-3.5-flash-lite", m)]
-router_chain  = _resolve_model_chain(GEMMA_MODEL_ROUTER)   # e.g. [("gemma-4-26b-a4b-it", m), ("gemini-3.5-flash", m), ("gemini-3.5-flash-lite", m)]
-
-REFINER_SYSTEM_PROMPT = (
-    "You are a Master Prompt Engineer. "
-    "Transform messy human input into a structured AI prompt. "
-    "Extract role, task, format, constraints, and a formatted_prompt. "
-    "Be precise — no filler text."
-)
-
-
-def _make_refiner_agent(model) -> Agent:
-    """Builds one refiner Agent bound to a specific model, with the dynamic
-    style/format system-prompt injector attached."""
-    agent = Agent(
-        model,
+# ── Refiner agent ─────────────────────────────────────────────────────────────
+if llama is None:
+    refiner_agent = None
+else:
+    refiner_agent = Agent(
+        llama,
         deps_type=RefineDeps,
         output_type=RefinedPromptOutput,
-        system_prompt=REFINER_SYSTEM_PROMPT,
+        system_prompt=(
+            "You are a Master Prompt Engineer. "
+            "Transform messy human input into a structured AI prompt. "
+            "Extract role, task, format, constraints, and a formatted_prompt. "
+            "Be precise — no filler text."
+        ),
     )
 
-    @agent.system_prompt
+
+if refiner_agent is not None:
+    @refiner_agent.system_prompt
     def inject_style_and_format(ctx: RunContext[RefineDeps]) -> str:
         fmt = FORMAT_INSTRUCTIONS.get(ctx.deps.target_provider, FORMAT_INSTRUCTIONS["ChatGPT"])
         return (
@@ -368,18 +234,11 @@ def _make_refiner_agent(model) -> Agent:
             f"FORMAT RULE: {fmt}"
         )
 
-    return agent
 
-
-# One agent per model in the chain, e.g. [("gemma-4-31b-it", Agent(...)), ("gemini-3.5-flash", Agent(...)), ...]
-refiner_agents = [(name, _make_refiner_agent(model)) for name, model in refiner_chain]
-
-
-# ── Router agents (built per-request: model chain is fixed, but the system
-#    prompt depends on which models are eligible for THIS request) ───────────
-def build_router_agents(eligible_models: dict):
-    if not router_chain:
-        raise RuntimeError(_backend_error_message())
+# ── Router agent (built per-request with the eligible model subset) ───────────
+def build_router_agent(eligible_models: dict):
+    if llama is None:
+        raise RuntimeError("No compatible model backend is available. Install a supported pydantic-ai provider or adjust the Ollama integration.")
 
     valid_ids       = list(eligible_models.keys())
     id_list_json    = json.dumps(valid_ids)
@@ -400,10 +259,7 @@ def build_router_agents(eligible_models: dict):
         "- NEVER invent, abbreviate, or paraphrase model IDs\n"
         "- Pick by task fit only — no provider preference"
     )
-    return [
-        (name, Agent(model, deps_type=None, output_type=RouterOutput, system_prompt=system))
-        for name, model in router_chain
-    ]
+    return Agent(llama, deps_type=None, output_type=RouterOutput, system_prompt=system)
 
 
 # ── API routes ────────────────────────────────────────────────────────────────
@@ -413,14 +269,14 @@ async def refine_prompt(request: PromptRequest):
     try:
         info     = MODEL_REGISTRY.get(request.target_model, {})
         provider = info.get("provider", "ChatGPT")
+        if refiner_agent is None:
+            raise RuntimeError("The backend model is not available. Start Ollama or install the required pydantic-ai provider package.")
 
-        deps = RefineDeps(style=request.style, target_provider=provider)
-        engine_used, result = await run_with_fallback(refiner_agents, request.user_input, deps=deps)
+        deps     = RefineDeps(style=request.style, target_provider=provider)
+        result   = await refiner_agent.run(request.user_input, deps=deps)
         data     = result.output.model_dump()
         data["target_model"] = request.target_model
         data["provider"]     = provider
-        data["backend"]      = "cloud" if CLOUD_MODE else "ollama"
-        data["engine_used"]  = engine_used
         return data
     except Exception as e:
         print(f"[REFINE ERROR] {e}")
@@ -440,14 +296,15 @@ async def suggest_model(request: SuggestRequest):
             raise HTTPException(status_code=400, detail="No eligible models in allowed_models.")
 
         valid_ids = list(eligible.keys())
-        agents    = build_router_agents(eligible)
-        engine_used, result = await run_with_fallback(agents, request.user_input)
+        router    = build_router_agent(eligible)
+        result    = await router.run(request.user_input)
         data      = result.output.model_dump()
 
         # Guard against hallucinated IDs
         data["recommended_model"] = snap_to_valid_id(data["recommended_model"], valid_ids)
         data["runner_up"]         = snap_to_valid_id(data["runner_up"], valid_ids)
 
+        # Ensure recommended and runner-up are distinct
         if data["runner_up"] == data["recommended_model"] and len(valid_ids) > 1:
             data["runner_up"] = next(v for v in valid_ids if v != data["recommended_model"])
 
@@ -457,8 +314,6 @@ async def suggest_model(request: SuggestRequest):
         )
         data["strengths"] = MODEL_REGISTRY.get(rec_id, {}).get("strengths", [])
         data["is_free"]   = MODEL_REGISTRY.get(rec_id, {}).get("free", False)
-        data["backend"]     = "cloud" if CLOUD_MODE else "ollama"
-        data["engine_used"] = engine_used
         return data
 
     except HTTPException:
@@ -476,19 +331,5 @@ def get_models():
 
 @app.get("/health")
 def health():
-    """Quick liveness check — shows which backend is active and the full
-    primary -> fallback chain configured for each task."""
-    if CLOUD_MODE:
-        return {
-            "status": "ok" if refiner_chain and router_chain else "degraded",
-            "backend": "cloud",
-            "refine_chain": [name for name, _ in refiner_chain],
-            "router_chain": [name for name, _ in router_chain],
-            "gemini_key_set": bool(GEMINI_API_KEY),
-        }
-    return {
-        "status": "ok" if refiner_chain else "degraded",
-        "backend": "ollama",
-        "model": OLLAMA_MODEL,
-        "ollama_url": OLLAMA_BASE_URL,
-    }
+    """Quick liveness check — also shows which Llama model is active."""
+    return {"status": "ok", "backend_model": OLLAMA_MODEL, "ollama_url": OLLAMA_BASE_URL}
